@@ -580,8 +580,8 @@ function computeHealthScores(metrics, goals, debt) {
   const emergency = goals.find((g) => g.name.toLowerCase().includes('emergency'))
   const emergencyScore = emergency
     ? Math.min(100, (parseNum(emergency.current) / Math.max(parseNum(emergency.target), 1)) * 100)
-    : 50
-  const debtScore = debt <= 0 ? 100 : Math.max(0, 100 - debt / 10000)
+    : 0
+  const debtScore = debt <= 0 && metrics.totalIncome === 0 ? 0 : debt <= 0 ? 100 : Math.max(0, 100 - debt / 10000)
   const overall = Math.round((savingsScore + spendingScore + emergencyScore + debtScore) / 4)
   return {
     overall,
