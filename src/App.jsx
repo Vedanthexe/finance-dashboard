@@ -129,6 +129,37 @@ const DEFAULT_RECURRING = [
   { id: 'r2', name: 'Gym', amount: '2500', cadence: 'Monthly' },
 ]
 
+// Groww portfolio data (live as of 26 May 2026, 11:55 AM IST)
+const GROWW_PORTFOLIO = {
+  lastSynced: '26 May 2026, 11:55 AM IST',
+  totalInvested: 7034,
+  totalCurrent: 8130,
+  totalPnl: 1097,
+  totalPnlPct: 15.60,
+  holdings: [
+    {
+      symbol: 'ADANIPORTS',
+      title: 'Adani Ports and SEZ',
+      qty: 1,
+      avgPrice: 1467.20,
+      invested: 1467,
+      current: 1810,
+      pnl: 345.90,
+      pnlPct: 23.58,
+    },
+    {
+      symbol: 'SILVERBEES',
+      title: 'Nippon India Silver ETF',
+      qty: 25,
+      avgPrice: 222.67,
+      invested: 5567,
+      current: 6320,
+      pnl: 751.25,
+      pnlPct: 13.50,
+    },
+  ],
+}
+
 const T = {
   bg: '#0A0A0A',
   card: '#111111',
@@ -212,15 +243,7 @@ function scaleMetric(value, period) {
   return value * (PERIOD_SCALE[period] ?? 1)
 }
 
-function applyTransactionDelta(
-  income,
-  expenses,
-  customExpenses,
-  category,
-  type,
-  amount,
-  sign = 1,
-) {
+function applyTransactionDelta(income, expenses, customExpenses, category, type, amount, sign = 1) {
   const delta = amount * sign
   const nextIncome = { ...income, custom: [...(income.custom || [])] }
   const nextExpenses = { ...expenses }
@@ -259,14 +282,12 @@ function computeMetrics(income, expenses, customExpenses, netWorth) {
     .filter(([k]) => k !== 'custom')
     .reduce((s, [, v]) => s + parseNum(v), 0)
   const totalIncome =
-    incomeBase +
-    (income.custom || []).reduce((s, c) => s + parseNum(c.amount), 0)
+    incomeBase + (income.custom || []).reduce((s, c) => s + parseNum(c.amount), 0)
   const totalExpenses =
     Object.values(expenses).reduce((s, v) => s + parseNum(v), 0) +
     customExpenses.reduce((s, c) => s + parseNum(c.amount), 0)
   const monthlySavings = totalIncome - totalExpenses
-  const savingsRate =
-    totalIncome > 0 ? (monthlySavings / totalIncome) * 100 : 0
+  const savingsRate = totalIncome > 0 ? (monthlySavings / totalIncome) * 100 : 0
   return {
     totalIncome,
     totalExpenses,
@@ -308,11 +329,7 @@ function loadState() {
     }
     const parsed = JSON.parse(raw)
     return {
-      income: {
-        ...DEFAULT_INCOME,
-        ...parsed.income,
-        custom: parsed.income?.custom || [],
-      },
+      income: { ...DEFAULT_INCOME, ...parsed.income, custom: parsed.income?.custom || [] },
       expenses: { ...DEFAULT_EXPENSES, ...parsed.expenses },
       customExpenses: parsed.customExpenses || [],
       netWorth: parsed.netWorth ?? '',
@@ -320,9 +337,7 @@ function loadState() {
       savingsGoals: parsed.savingsGoals?.length ? parsed.savingsGoals : DEFAULT_GOALS,
       transactions: parsed.transactions?.length ? parsed.transactions : DEFAULT_TRANSACTIONS,
       upcomingBills: parsed.upcomingBills?.length ? parsed.upcomingBills : DEFAULT_BILLS,
-      recurringPayments: parsed.recurringPayments?.length
-        ? parsed.recurringPayments
-        : DEFAULT_RECURRING,
+      recurringPayments: parsed.recurringPayments?.length ? parsed.recurringPayments : DEFAULT_RECURRING,
       history: parsed.history || {},
       selectedMonth: parsed.selectedMonth || monthKey(),
       period: parsed.period || 'month',
@@ -355,10 +370,7 @@ function ChartTooltip({ active, payload, label }) {
       {label && <div className="fd-tooltip-label">{label}</div>}
       {payload.map((entry) => (
         <div key={entry.name} className="fd-tooltip-row">
-          <span
-            className="fd-tooltip-dot"
-            style={{ background: entry.color || entry.fill }}
-          />
+          <span className="fd-tooltip-dot" style={{ background: entry.color || entry.fill }} />
           <span className="fd-tooltip-name">{entry.name}</span>
           <span className="fd-tooltip-value">{formatCurrency(entry.value)}</span>
         </div>
@@ -391,8 +403,7 @@ function TrendBadge({ change, invert = false }) {
   const isUp = change >= 0
   const good = invert ? !isUp : isUp
   const arrow = isUp ? '↑' : '↓'
-  const cls =
-    good ? 'fd-trend--good' : change === 0 ? 'fd-trend--neutral' : 'fd-trend--bad'
+  const cls = good ? 'fd-trend--good' : change === 0 ? 'fd-trend--neutral' : 'fd-trend--bad'
   return (
     <span className={`fd-trend ${cls}`}>
       {arrow} {Math.abs(change).toFixed(1)}% vs last month
@@ -402,9 +413,7 @@ function TrendBadge({ change, invert = false }) {
 
 function SummaryCard({ label, value, change, sparkData, valueClass = '', invertTrend = false }) {
   const sparkColor =
-    valueClass.includes('expense') || valueClass.includes('negative')
-      ? T.negative
-      : T.positive
+    valueClass.includes('expense') || valueClass.includes('negative') ? T.negative : T.positive
   return (
     <div className="fd-summary-card">
       <div className="fd-summary-top">
@@ -439,76 +448,294 @@ function MoneyInput({ value, onChange, compact = false, placeholder = '0' }) {
   )
 }
 
-function generateInsights({
-  metrics,
-  prev,
-  scaled,
-  savingsRate,
-  expenseItems,
-  goals,
-  periodLabel,
-}) {
+// ─── Editable List Item ────────────────────────────────────────────────────
+function EditableListItem({ item, fields, onSave, onDelete, renderRow }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ ...item })
+
+  const handleSave = () => {
+    onSave(draft)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div style={{ padding: '12px 0', borderBottom: `1px solid ${T.border}` }}>
+        {fields.map((f) => (
+          <div key={f.key} style={{ marginBottom: 8 }}>
+            <label className="fd-label">{f.label}</label>
+            <input
+              className="fd-input"
+              type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+              value={draft[f.key] ?? ''}
+              placeholder={f.placeholder ?? ''}
+              onChange={(e) => setDraft((p) => ({ ...p, [f.key]: e.target.value }))}
+              style={{ marginBottom: 0 }}
+            />
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button type="button" className="fd-btn-primary" style={{ fontSize: 11, padding: '6px 12px' }} onClick={handleSave}>Save</button>
+          <button type="button" className="fd-btn-ghost" style={{ fontSize: 11 }} onClick={() => { setDraft({ ...item }); setEditing(false) }}>Cancel</button>
+          <button type="button" className="fd-btn-ghost" style={{ fontSize: 11, color: T.negative, marginLeft: 'auto' }} onClick={onDelete}>Delete</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fd-list-item" style={{ paddingRight: 64 }}>
+      {renderRow(item)}
+      <button type="button" className="fd-tx-delete" style={{ opacity: 0, right: 30 }}
+        onClick={onDelete} aria-label="Delete">✕</button>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        style={{
+          position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+          padding: '3px 8px', fontSize: 11, color: T.textMuted,
+          background: T.inputBg, border: `1px solid ${T.border}`,
+          borderRadius: 6, cursor: 'pointer',
+        }}
+      >Edit</button>
+    </div>
+  )
+}
+
+function AddItemRow({ fields, onAdd }) {
+  const [open, setOpen] = useState(false)
+  const empty = Object.fromEntries(fields.map((f) => [f.key, '']))
+  const [draft, setDraft] = useState(empty)
+
+  const handleAdd = () => {
+    if (!draft[fields[0].key]?.trim()) return
+    onAdd(draft)
+    setDraft(empty)
+    setOpen(false)
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className="fd-tx-add-btn" style={{ marginTop: 8 }} onClick={() => setOpen(true)}>
+        + Add
+      </button>
+    )
+  }
+
+  return (
+    <div style={{ padding: '12px 0 4px', borderTop: `1px solid ${T.border}`, marginTop: 8 }}>
+      {fields.map((f) => (
+        <div key={f.key} style={{ marginBottom: 8 }}>
+          <label className="fd-label">{f.label}</label>
+          <input
+            className="fd-input"
+            type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+            value={draft[f.key]}
+            placeholder={f.placeholder ?? ''}
+            onChange={(e) => setDraft((p) => ({ ...p, [f.key]: e.target.value }))}
+            style={{ marginBottom: 0 }}
+          />
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button type="button" className="fd-btn-primary" style={{ fontSize: 11, padding: '6px 12px' }} onClick={handleAdd}>Add</button>
+        <button type="button" className="fd-btn-ghost" style={{ fontSize: 11 }} onClick={() => { setDraft(empty); setOpen(false) }}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Editable Goal ──────────────────────────────────────────────────────────
+function EditableGoal({ goal, monthlySavings, onSave, onDelete }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState({ ...goal })
+
+  const current = parseNum(goal.current)
+  const target = parseNum(goal.target)
+  const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0
+  const suggested = parseNum(goal.monthlyContribution) || Math.max(1000, monthlySavings * 0.15)
+
+  if (editing) {
+    return (
+      <div className="fd-goal">
+        {[
+          { key: 'name', label: 'Goal name', type: 'text' },
+          { key: 'current', label: 'Current (₹)', type: 'number' },
+          { key: 'target', label: 'Target (₹)', type: 'number' },
+          { key: 'monthlyContribution', label: 'Monthly contribution (₹)', type: 'number' },
+        ].map((f) => (
+          <div key={f.key} style={{ marginBottom: 8 }}>
+            <label className="fd-label">{f.label}</label>
+            <input
+              className="fd-input"
+              type={f.type}
+              value={draft[f.key] ?? ''}
+              onChange={(e) => setDraft((p) => ({ ...p, [f.key]: e.target.value }))}
+              style={{ marginBottom: 0 }}
+            />
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button type="button" className="fd-btn-primary" style={{ fontSize: 11, padding: '6px 12px' }}
+            onClick={() => { onSave(draft); setEditing(false) }}>Save</button>
+          <button type="button" className="fd-btn-ghost" style={{ fontSize: 11 }}
+            onClick={() => { setDraft({ ...goal }); setEditing(false) }}>Cancel</button>
+          <button type="button" className="fd-btn-ghost" style={{ fontSize: 11, color: T.negative, marginLeft: 'auto' }}
+            onClick={onDelete}>Delete</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fd-goal">
+      <div className="fd-goal-head">
+        <span className="fd-goal-name">{goal.name}</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span className="fd-goal-amt">{formatCompact(current)} / {formatCompact(target)}</span>
+          <button type="button" className="fd-btn-ghost" style={{ fontSize: 11, padding: '2px 7px' }}
+            onClick={() => setEditing(true)}>Edit</button>
+        </div>
+      </div>
+      <div className="fd-progress-track"><div className="fd-progress-fill" style={{ width: `${pct}%` }} /></div>
+      <div className="fd-goal-meta"><span>{pct.toFixed(0)}% complete</span><span>Est. {estimateCompletion(goal, monthlySavings)}</span></div>
+      <div className="fd-goal-meta"><span>Suggested: {formatCompact(suggested)}/mo</span></div>
+    </div>
+  )
+}
+
+// ─── Groww Portfolio Section ────────────────────────────────────────────────
+function GrowwPortfolio() {
+  const p = GROWW_PORTFOLIO
+  const totalInvested = p.totalInvested
+  return (
+    <Card>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <h2 className="fd-section-title" style={{ margin: 0 }}>Groww Portfolio</h2>
+        <span style={{
+          fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase',
+          background: 'rgba(16,185,129,0.12)', color: T.positive,
+          border: '1px solid rgba(16,185,129,0.25)', borderRadius: 99,
+          padding: '2px 8px', lineHeight: 1.6,
+        }}>● Live</span>
+      </div>
+
+      {/* Summary stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+        {[
+          { label: 'Invested', value: formatCurrency(p.totalInvested), color: T.text },
+          { label: 'Current Value', value: formatCurrency(p.totalCurrent), color: T.positive },
+          { label: 'Total P&L', value: `+${formatCurrency(p.totalPnl)} (+${p.totalPnlPct.toFixed(1)}%)`, color: T.positive },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{
+            background: T.inputBg, border: `1px solid ${T.border}`,
+            borderRadius: 10, padding: '12px 14px',
+          }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 6 }}>{label}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Allocation bar */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 8 }}>Allocation</div>
+        <div style={{ display: 'flex', height: 6, borderRadius: 999, overflow: 'hidden', background: T.track }}>
+          {p.holdings.map((h, i) => (
+            <div key={h.symbol} style={{
+              width: `${(h.invested / totalInvested) * 100}%`,
+              background: i === 0 ? T.positive : 'rgba(16,185,129,0.4)',
+              transition: 'width 0.4s ease',
+            }} />
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+          {p.holdings.map((h, i) => (
+            <div key={h.symbol} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.textMuted }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: 2, flexShrink: 0,
+                background: i === 0 ? T.positive : 'rgba(16,185,129,0.4)',
+              }} />
+              {h.symbol} ({((h.invested / totalInvested) * 100).toFixed(0)}%)
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Holdings rows */}
+      <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 10 }}>Holdings</div>
+      {p.holdings.map((h) => (
+        <div key={h.symbol} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          gap: 12, padding: '12px 0', borderBottom: `1px solid ${T.border}`,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 600, background: T.inputBg,
+                border: `1px solid ${T.border}`, borderRadius: 4,
+                padding: '2px 6px', color: T.textSecondary, letterSpacing: '0.04em',
+              }}>{h.symbol}</span>
+              <span style={{ fontSize: 13, color: T.text }}>{h.title}</span>
+            </div>
+            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
+              {h.qty} share{h.qty !== 1 ? 's' : ''} · Avg {formatCurrency(h.avgPrice)}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums' }}>
+              {formatCurrency(h.current)}
+            </div>
+            <div style={{ fontSize: 12, color: T.positive, fontWeight: 500, marginTop: 2 }}>
+              +{formatCurrency(h.pnl)} ({h.pnlPct.toFixed(2)}%)
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Sync note */}
+      <div style={{ fontSize: 11, color: T.textMuted, marginTop: 14 }}>
+        Last synced: {p.lastSynced}
+      </div>
+    </Card>
+  )
+}
+
+function generateInsights({ metrics, prev, scaled, savingsRate, expenseItems, goals, periodLabel }) {
   const insights = []
   const subDelta = metrics.subscriptions - (prev?.subscriptions || 0)
   if (subDelta > 500) {
-    insights.push({
-      type: 'warning',
-      text: `Subscription spending increased ${formatCurrency(subDelta)} vs last month`,
-    })
+    insights.push({ type: 'warning', text: `Subscription spending increased ${formatCurrency(subDelta)} vs last month` })
   } else if (subDelta < -500) {
-    insights.push({
-      type: 'positive',
-      text: `Subscription spending decreased ${formatCurrency(Math.abs(subDelta))}`,
-    })
+    insights.push({ type: 'positive', text: `Subscription spending decreased ${formatCurrency(Math.abs(subDelta))}` })
   }
 
   const food = expenseItems.find((e) => e.name === 'Food')
   if (food && prev?.foodExpense) {
     const foodChg = pctChange(food.value, prev.foodExpense)
     if (foodChg <= -5) {
-      insights.push({
-        type: 'positive',
-        text: `Food spending decreased by ${Math.abs(foodChg).toFixed(0)}%`,
-      })
+      insights.push({ type: 'positive', text: `Food spending decreased by ${Math.abs(foodChg).toFixed(0)}%` })
     } else if (foodChg >= 10) {
-      insights.push({
-        type: 'warning',
-        text: `Food spending increased by ${foodChg.toFixed(0)}%`,
-      })
+      insights.push({ type: 'warning', text: `Food spending increased by ${foodChg.toFixed(0)}%` })
     }
   }
 
   if (savingsRate > 0) {
-    insights.push({
-      type: 'neutral',
-      text: `You saved ${savingsRate.toFixed(1)}% of income this ${periodLabel.toLowerCase()}`,
-    })
+    insights.push({ type: 'neutral', text: `You saved ${savingsRate.toFixed(1)}% of income this ${periodLabel.toLowerCase()}` })
   }
 
   const annual = scaled.monthlySavings * 12
   if (annual > 0) {
-    insights.push({
-      type: 'neutral',
-      text: `At current pace you'll save ${formatCompact(annual)}/year`,
-    })
+    insights.push({ type: 'neutral', text: `At current pace you'll save ${formatCompact(annual)}/year` })
   }
 
   const expChg = prev ? pctChange(metrics.totalExpenses, prev.totalExpenses) : 0
   if (expChg >= 12) {
-    insights.push({
-      type: 'warning',
-      text: `Expenses increased ${expChg.toFixed(0)}% vs last month`,
-    })
-  } else if (
-    metrics.monthlySavings > (prev?.monthlySavings || 0) &&
-    prev?.monthlySavings
-  ) {
+    insights.push({ type: 'warning', text: `Expenses increased ${expChg.toFixed(0)}% vs last month` })
+  } else if (metrics.monthlySavings > (prev?.monthlySavings || 0) && prev?.monthlySavings) {
     const savChg = pctChange(metrics.monthlySavings, prev.monthlySavings)
     if (savChg >= 5) {
-      insights.push({
-        type: 'positive',
-        text: `Saved ${savChg.toFixed(0)}% more than last month`,
-      })
+      insights.push({ type: 'positive', text: `Saved ${savChg.toFixed(0)}% more than last month` })
     }
   }
 
@@ -517,32 +744,26 @@ function generateInsights({
     const gap = parseNum(emergency.target) - parseNum(emergency.current)
     const suggest = Math.min(gap, Math.max(5000, scaled.monthlySavings * 0.25))
     if (gap > 0 && suggest > 0) {
-      insights.push({
-        type: 'tip',
-        text: `Move ${formatCompact(suggest)} toward ${emergency.name}`,
-      })
+      insights.push({ type: 'tip', text: `Move ${formatCompact(suggest)} toward ${emergency.name}` })
     }
   }
+
+  // Groww insight
+  insights.push({ type: 'positive', text: `Groww portfolio up ${GROWW_PORTFOLIO.totalPnlPct.toFixed(1)}% · Best: ADANIPORTS +23.58%` })
 
   return insights.slice(0, 6)
 }
 
 function computeHealthScores(metrics, goals, debt) {
   const savingsScore = Math.min(100, Math.max(0, metrics.savingsRate * 1.2))
-  const spendRatio =
-    metrics.totalIncome > 0 ? metrics.totalExpenses / metrics.totalIncome : 1
+  const spendRatio = metrics.totalIncome > 0 ? metrics.totalExpenses / metrics.totalIncome : 1
   const spendingScore = Math.min(100, Math.max(0, (1 - spendRatio) * 100))
   const emergency = goals.find((g) => g.name.toLowerCase().includes('emergency'))
   const emergencyScore = emergency
-    ? Math.min(
-        100,
-        (parseNum(emergency.current) / Math.max(parseNum(emergency.target), 1)) * 100,
-      )
+    ? Math.min(100, (parseNum(emergency.current) / Math.max(parseNum(emergency.target), 1)) * 100)
     : 50
   const debtScore = debt <= 0 ? 100 : Math.max(0, 100 - debt / 10000)
-  const overall = Math.round(
-    (savingsScore + spendingScore + emergencyScore + debtScore) / 4,
-  )
+  const overall = Math.round((savingsScore + spendingScore + emergencyScore + debtScore) / 4)
   return {
     overall,
     savings: Math.round(savingsScore),
@@ -622,59 +843,31 @@ function App() {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          income,
-          expenses,
-          customExpenses,
-          netWorth,
-          debt,
-          savingsGoals,
-          transactions,
-          upcomingBills,
-          recurringPayments,
-          history: nextHistory,
-          selectedMonth,
-          period,
+          income, expenses, customExpenses, netWorth, debt,
+          savingsGoals, transactions, upcomingBills, recurringPayments,
+          history: nextHistory, selectedMonth, period,
         }),
       )
       return nextHistory
     })
-  }, [
-    income,
-    expenses,
-    customExpenses,
-    netWorth,
-    debt,
-    savingsGoals,
-    transactions,
-    upcomingBills,
-    recurringPayments,
-    selectedMonth,
-    period,
-    hydrated,
-  ])
+  }, [income, expenses, customExpenses, netWorth, debt, savingsGoals, transactions, upcomingBills, recurringPayments, selectedMonth, period, hydrated])
 
   const historyWithSeed = useMemo(() => {
     const snap = buildSnapshot(income, expenses, customExpenses, netWorth)
-    const merged = {
-      ...history,
-      [selectedMonth]: { ...snap, foodExpense: parseNum(expenses.food) },
-    }
+    const merged = { ...history, [selectedMonth]: { ...snap, foodExpense: parseNum(expenses.food) } }
     return seedHistoryIfEmpty(merged, snap, selectedMonth)
   }, [history, income, expenses, customExpenses, netWorth, selectedMonth])
 
   const prevMonth = shiftMonth(selectedMonth, -1)
   const prev = historyWithSeed[prevMonth]
 
-  const scaled = useMemo(
-    () => ({
-      totalIncome: scaleMetric(metrics.totalIncome, period),
-      totalExpenses: scaleMetric(metrics.totalExpenses, period),
-      monthlySavings: scaleMetric(metrics.monthlySavings, period),
-      savingsRate: metrics.savingsRate,
-      netWorth: metrics.netWorth,
-    }),
-    [metrics, period],
-  )
+  const scaled = useMemo(() => ({
+    totalIncome: scaleMetric(metrics.totalIncome, period),
+    totalExpenses: scaleMetric(metrics.totalExpenses, period),
+    monthlySavings: scaleMetric(metrics.monthlySavings, period),
+    savingsRate: metrics.savingsRate,
+    netWorth: metrics.netWorth,
+  }), [metrics, period])
 
   const prevScaled = prev
     ? {
@@ -697,14 +890,10 @@ function App() {
 
   const expenseItems = useMemo(() => {
     const items = Object.entries(EXPENSE_LABELS).map(([key, name]) => ({
-      key,
-      name,
-      value: parseNum(expenses[key]),
+      key, name, value: parseNum(expenses[key]),
     }))
     customExpenses.forEach((c) => {
-      if (c.name?.trim()) {
-        items.push({ key: c.id, name: c.name.trim(), value: parseNum(c.amount) })
-      }
+      if (c.name?.trim()) items.push({ key: c.id, name: c.name.trim(), value: parseNum(c.amount) })
     })
     return items.filter((i) => i.value > 0).sort((a, b) => b.value - a.value)
   }, [expenses, customExpenses])
@@ -719,30 +908,15 @@ function App() {
       const label = `${k.slice(5)}/${k.slice(2, 4)}`
       rows.push({
         month: label,
-        income: scaleMetric(
-          h?.totalIncome ?? (i === 0 ? metrics.totalIncome : 0),
-          period,
-        ),
-        expenses: scaleMetric(
-          h?.totalExpenses ?? (i === 0 ? metrics.totalExpenses : 0),
-          period,
-        ),
+        income: scaleMetric(h?.totalIncome ?? (i === 0 ? metrics.totalIncome : 0), period),
+        expenses: scaleMetric(h?.totalExpenses ?? (i === 0 ? metrics.totalExpenses : 0), period),
       })
     }
     return rows
   }, [historyWithSeed, selectedMonth, period, metrics])
 
   const insights = useMemo(
-    () =>
-      generateInsights({
-        metrics,
-        prev,
-        scaled,
-        savingsRate: metrics.savingsRate,
-        expenseItems,
-        goals: savingsGoals,
-        periodLabel: PERIOD_LABELS[period],
-      }),
+    () => generateInsights({ metrics, prev, scaled, savingsRate: metrics.savingsRate, expenseItems, goals: savingsGoals, periodLabel: PERIOD_LABELS[period] }),
     [metrics, prev, scaled, expenseItems, savingsGoals, period],
   )
 
@@ -752,16 +926,7 @@ function App() {
   )
 
   const healthTrend = prev
-    ? pctChange(
-        health.overall,
-        Math.round(
-          (Math.min(100, prev.savingsRate * 1.2) +
-            Math.min(100, (1 - prev.totalExpenses / Math.max(prev.totalIncome, 1)) * 100) +
-            50 +
-            100) /
-            4,
-        ),
-      )
+    ? pctChange(health.overall, Math.round((Math.min(100, prev.savingsRate * 1.2) + Math.min(100, (1 - prev.totalExpenses / Math.max(prev.totalIncome, 1)) * 100) + 50 + 100) / 4))
     : 0
 
   const monthOptions = useMemo(() => {
@@ -771,16 +936,11 @@ function App() {
   }, [])
 
   const sortedTransactions = useMemo(
-    () =>
-      [...transactions].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-      ),
+    () => [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     [transactions],
   )
 
-  const removeCustomCategory = (id) => {
-    setCustomExpenses((p) => p.filter((c) => c.id !== id))
-  }
+  const removeCustomCategory = (id) => setCustomExpenses((p) => p.filter((c) => c.id !== id))
 
   const resetTxForm = () => {
     setTxDate(todayISO())
@@ -794,7 +954,6 @@ function App() {
     e.preventDefault()
     const amount = parseNum(txAmount)
     if (!txDescription.trim() || amount <= 0) return
-
     const tx = {
       id: crypto.randomUUID?.() ?? String(Date.now()),
       label: txDescription.trim(),
@@ -804,16 +963,7 @@ function App() {
       category: txCategory,
       ledgerApplied: true,
     }
-
-    const updated = applyTransactionDelta(
-      income,
-      expenses,
-      customExpenses,
-      txCategory,
-      tx.type,
-      amount,
-      1,
-    )
+    const updated = applyTransactionDelta(income, expenses, customExpenses, txCategory, tx.type, amount, 1)
     setIncome(updated.income)
     setExpenses(updated.expenses)
     setTransactions((prev) => [tx, ...prev])
@@ -825,15 +975,7 @@ function App() {
     const tx = transactions.find((t) => t.id === id)
     if (!tx) return
     if (tx.ledgerApplied) {
-      const updated = applyTransactionDelta(
-        income,
-        expenses,
-        customExpenses,
-        tx.category || 'Other',
-        tx.type,
-        parseNum(tx.amount),
-        -1,
-      )
+      const updated = applyTransactionDelta(income, expenses, customExpenses, tx.category || 'Other', tx.type, parseNum(tx.amount), -1)
       setIncome(updated.income)
       setExpenses(updated.expenses)
     }
@@ -842,19 +984,8 @@ function App() {
 
   if (!hydrated) {
     return (
-      <div
-        className="fd-app"
-        style={{
-          minHeight: '100vh',
-          background: T.bg,
-          padding: '32px 16px',
-          color: T.textMuted,
-          fontFamily: 'system-ui, sans-serif',
-        }}
-      >
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <p style={{ margin: 0 }}>Loading…</p>
-        </div>
+      <div className="fd-app" style={{ minHeight: '100vh', background: T.bg, padding: '32px 16px', color: T.textMuted, fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ maxWidth: 900, margin: '0 auto' }}><p style={{ margin: 0 }}>Loading…</p></div>
       </div>
     )
   }
@@ -876,54 +1007,21 @@ function App() {
           box-sizing: border-box;
         }
         .fd-shell { max-width: 900px; margin: 0 auto; }
-        .fd-topbar {
-          display: flex; flex-wrap: wrap; align-items: flex-end;
-          justify-content: space-between; gap: 16px; margin-bottom: 32px;
-        }
-        .fd-brand {
-          font-size: 11px; font-weight: 500; letter-spacing: 0.2em;
-          text-transform: uppercase; color: ${T.textMuted}; margin: 0 0 6px;
-        }
-        .fd-title { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -0.02em; }
+        .fd-topbar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+        .fd-brand { font-size: 13px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: ${T.textMuted}; margin: 0 0 8px; }
+        .fd-title { font-size: 28px; font-weight: 700; margin: 0; letter-spacing: -0.03em; }
         .fd-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-        .fd-period-group {
-          display: flex; background: ${T.card}; border: 1px solid var(--fd-border);
-          border-radius: 12px; padding: 3px;
-        }
-        .fd-period-btn {
-          padding: 6px 12px; font-size: 11px; font-weight: 500; color: ${T.textMuted};
-          background: transparent; border: none; border-radius: 8px; cursor: pointer;
-        }
+        .fd-period-group { display: flex; background: ${T.card}; border: 1px solid var(--fd-border); border-radius: 12px; padding: 3px; }
+        .fd-period-btn { padding: 6px 12px; font-size: 11px; font-weight: 500; color: ${T.textMuted}; background: transparent; border: none; border-radius: 8px; cursor: pointer; }
         .fd-period-btn--active { background: ${T.inputBg}; color: ${T.positive}; }
-        .fd-month-select {
-          padding: 8px 12px; font-size: 12px; color: ${T.text};
-          background: ${T.inputBg}; border: 1px solid ${T.inputBorder};
-          border-radius: 12px; outline: none; cursor: pointer;
-        }
-        .fd-sync-badge {
-          font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
-          color: ${T.textMuted}; padding: 8px 12px; border: 1px solid var(--fd-border);
-          border-radius: 12px; background: ${T.card};
-        }
-        .fd-summary-row {
-          display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px;
-        }
+        .fd-month-select { padding: 8px 12px; font-size: 12px; color: ${T.text}; background: ${T.inputBg}; border: 1px solid ${T.inputBorder}; border-radius: 12px; outline: none; cursor: pointer; }
+        .fd-sync-badge { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: ${T.textMuted}; padding: 8px 12px; border: 1px solid var(--fd-border); border-radius: 12px; background: ${T.card}; }
+        .fd-summary-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; }
         @media (min-width: 768px) { .fd-summary-row { grid-template-columns: repeat(4, 1fr); } }
-        .fd-summary-card {
-          background: ${T.card}; border: 1px solid var(--fd-border);
-          border-radius: 12px; padding: 20px;
-        }
-        .fd-summary-top {
-          display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;
-        }
-        .fd-summary-label {
-          font-size: 11px; font-weight: 500; text-transform: uppercase;
-          letter-spacing: 0.2em; color: ${T.textMuted};
-        }
-        .fd-summary-value {
-          font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums;
-          letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 8px; color: ${T.text};
-        }
+        .fd-summary-card { background: ${T.card}; border: 1px solid var(--fd-border); border-radius: 12px; padding: 20px; }
+        .fd-summary-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .fd-summary-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.2em; color: ${T.textMuted}; }
+        .fd-summary-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 8px; color: ${T.text}; }
         @media (min-width: 768px) { .fd-summary-value { font-size: 30px; } }
         .fd-summary-value--income, .fd-summary-value--savings { color: ${T.positive}; }
         .fd-summary-value--expense, .fd-summary-value--negative { color: ${T.negative}; }
@@ -933,20 +1031,10 @@ function App() {
         .fd-trend--bad { color: ${T.negative}; }
         .fd-trend--neutral { color: ${T.textMuted}; }
         .fd-sparkline { opacity: 0.7; }
-        .fd-card {
-          background: ${T.card}; border: 1px solid var(--fd-border);
-          border-radius: 12px; padding: 20px; margin-bottom: 20px;
-        }
-        .fd-section-title {
-          font-size: 11px; font-weight: 500; letter-spacing: 0.2em;
-          text-transform: uppercase; color: ${T.textMuted}; margin: 0 0 16px;
-          padding-left: 12px; border-left: 2px solid ${T.accent};
-        }
+        .fd-card { background: ${T.card}; border: 1px solid var(--fd-border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .fd-section-title { font-size: 11px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: ${T.textMuted}; margin: 0 0 16px; padding-left: 12px; border-left: 2px solid ${T.accent}; }
         .fd-insights-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-        .fd-insight {
-          display: flex; gap: 10px; padding: 12px 14px; border-radius: 12px;
-          font-size: 13px; color: ${T.textSecondary}; border: 1px solid var(--fd-border);
-        }
+        .fd-insight { display: flex; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 13px; color: ${T.textSecondary}; border: 1px solid var(--fd-border); }
         .fd-insight--positive { border-color: rgba(16,185,129,0.2); background: ${T.positiveMuted}; }
         .fd-insight--warning { border-color: rgba(244,63,94,0.2); background: ${T.negativeMuted}; }
         .fd-insight--tip { border-color: rgba(16,185,129,0.15); background: ${T.positiveMuted}; }
@@ -970,11 +1058,7 @@ function App() {
         .fd-goal-meta { display: flex; justify-content: space-between; font-size: 11px; color: ${T.textMuted}; margin-top: 8px; }
         .fd-progress-track { height: 6px; background: ${T.track}; border-radius: 999px; overflow: hidden; }
         .fd-progress-fill { height: 100%; background: ${T.positive}; border-radius: 999px; transition: width 0.4s ease; }
-        .fd-list-item {
-          display: flex; justify-content: space-between; align-items: center;
-          gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--fd-border);
-          position: relative;
-        }
+        .fd-list-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--fd-border); position: relative; }
         .fd-list-item:hover .fd-tx-delete { opacity: 1; }
         .fd-list-item:last-child { border-bottom: none; }
         .fd-list-label { font-size: 13px; color: ${T.text}; }
@@ -982,91 +1066,37 @@ function App() {
         .fd-list-amt { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
         .fd-list-amt--in { color: ${T.positive}; }
         .fd-list-amt--out { color: ${T.negative}; }
-        .fd-tx-delete {
-          position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-          padding: 4px 8px; font-size: 14px; line-height: 1; color: ${T.textMuted};
-          background: ${T.inputBg}; border: 1px solid var(--fd-border); border-radius: 6px;
-          cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s;
-        }
+        .fd-tx-delete { position: absolute; right: 0; top: 50%; transform: translateY(-50%); padding: 4px 8px; font-size: 14px; line-height: 1; color: ${T.textMuted}; background: ${T.inputBg}; border: 1px solid var(--fd-border); border-radius: 6px; cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; }
         .fd-tx-delete:hover { color: ${T.negative}; border-color: rgba(244,63,94,0.35); }
         .fd-list-item--tx { padding-right: 36px; }
-        .fd-tx-add-btn {
-          width: 100%; padding: 10px 14px; margin-bottom: 16px; font-size: 12px;
-          font-weight: 600; color: ${T.positive}; background: transparent;
-          border: 1px dashed rgba(16,185,129,0.4); border-radius: 8px; cursor: pointer;
-        }
+        .fd-tx-add-btn { width: 100%; padding: 10px 14px; margin-bottom: 16px; font-size: 12px; font-weight: 600; color: ${T.positive}; background: transparent; border: 1px dashed rgba(16,185,129,0.4); border-radius: 8px; cursor: pointer; }
         .fd-tx-add-btn:hover { background: ${T.positiveMuted}; }
-        .fd-tx-form {
-          padding: 16px 0 8px; margin-bottom: 12px;
-          border-top: 1px solid var(--fd-border); border-bottom: 1px solid var(--fd-border);
-        }
-        .fd-label {
-          display: block; font-size: 11px; font-weight: 500; letter-spacing: 0.16em;
-          text-transform: uppercase; color: ${T.textMuted}; margin-bottom: 8px;
-        }
-        .fd-input {
-          width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 13px;
-          color: ${T.text}; background: ${T.inputBg}; border: 1px solid ${T.inputBorder};
-          border-radius: 8px; outline: none; margin-bottom: 12px;
-          font-variant-numeric: tabular-nums;
-        }
+        .fd-tx-form { padding: 16px 0 8px; margin-bottom: 12px; border-top: 1px solid var(--fd-border); border-bottom: 1px solid var(--fd-border); }
+        .fd-label { display: block; font-size: 11px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: ${T.textMuted}; margin-bottom: 8px; }
+        .fd-input { width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 13px; color: ${T.text}; background: ${T.inputBg}; border: 1px solid ${T.inputBorder}; border-radius: 8px; outline: none; margin-bottom: 12px; font-variant-numeric: tabular-nums; }
         .fd-input:focus { border-color: #3a3a3a; }
         .fd-input--inline { max-width: 108px; margin-bottom: 0; }
         .fd-tx-toggle { display: flex; gap: 8px; margin-bottom: 12px; }
-        .fd-tx-toggle-btn {
-          flex: 1; padding: 9px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
-          text-transform: uppercase; border-radius: 8px; border: 1px solid ${T.inputBorder};
-          cursor: pointer; background: ${T.inputBg}; color: ${T.textMuted};
-        }
-        .fd-tx-toggle-btn--in-active {
-          background: ${T.positiveMuted}; color: ${T.positive}; border-color: rgba(16,185,129,0.35);
-        }
-        .fd-tx-toggle-btn--out-active {
-          background: ${T.negativeMuted}; color: ${T.negative}; border-color: rgba(244,63,94,0.35);
-        }
-        .fd-btn-primary {
-          padding: 10px 16px; font-size: 12px; font-weight: 600; color: ${T.bg};
-          background: ${T.positive}; border: none; border-radius: 8px; cursor: pointer;
-        }
-        .fd-btn-ghost {
-          padding: 6px 10px; font-size: 11px; color: ${T.textMuted};
-          background: transparent; border: 1px solid var(--fd-border); border-radius: 8px; cursor: pointer;
-        }
+        .fd-tx-toggle-btn { flex: 1; padding: 9px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 8px; border: 1px solid ${T.inputBorder}; cursor: pointer; background: ${T.inputBg}; color: ${T.textMuted}; }
+        .fd-tx-toggle-btn--in-active { background: ${T.positiveMuted}; color: ${T.positive}; border-color: rgba(16,185,129,0.35); }
+        .fd-tx-toggle-btn--out-active { background: ${T.negativeMuted}; color: ${T.negative}; border-color: rgba(244,63,94,0.35); }
+        .fd-btn-primary { padding: 10px 16px; font-size: 12px; font-weight: 600; color: ${T.bg}; background: ${T.positive}; border: none; border-radius: 8px; cursor: pointer; }
+        .fd-btn-ghost { padding: 6px 10px; font-size: 11px; color: ${T.textMuted}; background: transparent; border: 1px solid var(--fd-border); border-radius: 8px; cursor: pointer; }
         .fd-health-score { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .fd-health-score span { font-size: 14px; color: ${T.textMuted}; font-weight: 500; }
         .fd-health-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
         @media (min-width: 600px) { .fd-health-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (min-width: 768px) { .fd-health-grid { grid-template-columns: repeat(4, 1fr); } }
-        .fd-health-item label {
-          display: flex; justify-content: space-between; font-size: 11px;
-          letter-spacing: 0.12em; text-transform: uppercase; color: ${T.textMuted}; margin-bottom: 8px;
-        }
-        .fd-form-row {
-          display: flex; align-items: center; gap: 10px; padding: 10px 0;
-          border-bottom: 1px solid var(--fd-border);
-        }
-        .fd-form-row label {
-          flex: 0 0 96px; font-size: 11px; letter-spacing: 0.1em;
-          text-transform: uppercase; color: ${T.textMuted};
-        }
-        .fd-forms-toggle {
-          width: 100%; padding: 14px 20px; margin-bottom: 20px; font-size: 11px;
-          letter-spacing: 0.16em; text-transform: uppercase; color: ${T.textMuted};
-          background: ${T.card}; border: 1px solid var(--fd-border); border-radius: 12px;
-          cursor: pointer; text-align: left;
-        }
+        .fd-health-item label { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: ${T.textMuted}; margin-bottom: 8px; }
+        .fd-form-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--fd-border); }
+        .fd-form-row label { flex: 0 0 96px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: ${T.textMuted}; }
+        .fd-forms-toggle { width: 100%; padding: 14px 20px; margin-bottom: 20px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: ${T.textMuted}; background: ${T.card}; border: 1px solid var(--fd-border); border-radius: 12px; cursor: pointer; text-align: left; }
         .fd-forms-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
         @media (min-width: 768px) { .fd-forms-grid { grid-template-columns: 1fr 1fr; } }
         .fd-add-line { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
         .fd-empty { font-size: 12px; color: ${T.textMuted}; text-align: center; padding: 16px; }
-        .fd-tooltip {
-          background: ${T.card}; border: 1px solid var(--fd-border);
-          border-radius: 12px; padding: 12px 16px;
-        }
-        .fd-tooltip-label {
-          font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
-          color: ${T.textMuted}; margin-bottom: 8px;
-        }
+        .fd-tooltip { background: ${T.card}; border: 1px solid var(--fd-border); border-radius: 12px; padding: 12px 16px; }
+        .fd-tooltip-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: ${T.textMuted}; margin-bottom: 8px; }
         .fd-tooltip-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 4px; }
         .fd-tooltip-dot { width: 6px; height: 6px; border-radius: 1px; }
         .fd-tooltip-name { flex: 1; color: ${T.textMuted}; }
@@ -1084,67 +1114,25 @@ function App() {
           <div className="fd-controls">
             <div className="fd-period-group" role="tablist">
               {PERIODS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  role="tab"
-                  aria-selected={period === p}
+                <button key={p} type="button" role="tab" aria-selected={period === p}
                   className={`fd-period-btn ${period === p ? 'fd-period-btn--active' : ''}`}
-                  onClick={() => setPeriod(p)}
-                >
+                  onClick={() => setPeriod(p)}>
                   {PERIOD_LABELS[p]}
                 </button>
               ))}
             </div>
-            <select
-              className="fd-month-select"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              aria-label="Select month"
-            >
-              {monthOptions.map((m) => (
-                <option key={m} value={m}>
-                  {formatMonthLabel(m)}
-                </option>
-              ))}
+            <select className="fd-month-select" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} aria-label="Select month">
+              {monthOptions.map((m) => (<option key={m} value={m}>{formatMonthLabel(m)}</option>))}
             </select>
             <span className="fd-sync-badge">● Auto-saved</span>
           </div>
         </header>
 
         <div className="fd-summary-row">
-          <SummaryCard
-            label="Net Worth"
-            value={formatCompact(scaled.netWorth)}
-            change={pctChange(scaled.netWorth, prevScaled?.netWorth ?? 0)}
-            sparkData={sparkFromHistory('netWorth')}
-            valueClass="fd-summary-value--neutral"
-          />
-          <SummaryCard
-            label="Monthly Savings"
-            value={formatCurrency(scaled.monthlySavings)}
-            change={pctChange(scaled.monthlySavings, prevScaled?.monthlySavings ?? 0)}
-            sparkData={sparkFromHistory('monthlySavings')}
-            valueClass="fd-summary-value--savings"
-          />
-          <SummaryCard
-            label="Cash Flow"
-            value={`${scaled.monthlySavings >= 0 ? '+' : ''}${formatCurrency(scaled.monthlySavings)}`}
-            change={pctChange(scaled.monthlySavings, prevScaled?.monthlySavings ?? 0)}
-            sparkData={sparkFromHistory('monthlySavings')}
-            valueClass={
-              scaled.monthlySavings >= 0
-                ? 'fd-summary-value--income'
-                : 'fd-summary-value--negative'
-            }
-          />
-          <SummaryCard
-            label="Savings Rate"
-            value={`${metrics.savingsRate.toFixed(1)}%`}
-            change={pctChange(metrics.savingsRate, prev?.savingsRate ?? 0)}
-            sparkData={sparkFromHistory('savingsRate')}
-            valueClass="fd-summary-value--savings"
-          />
+          <SummaryCard label="Net Worth" value={formatCompact(scaled.netWorth)} change={pctChange(scaled.netWorth, prevScaled?.netWorth ?? 0)} sparkData={sparkFromHistory('netWorth')} valueClass="fd-summary-value--neutral" />
+          <SummaryCard label="Monthly Savings" value={formatCurrency(scaled.monthlySavings)} change={pctChange(scaled.monthlySavings, prevScaled?.monthlySavings ?? 0)} sparkData={sparkFromHistory('monthlySavings')} valueClass="fd-summary-value--savings" />
+          <SummaryCard label="Cash Flow" value={`${scaled.monthlySavings >= 0 ? '+' : ''}${formatCurrency(scaled.monthlySavings)}`} change={pctChange(scaled.monthlySavings, prevScaled?.monthlySavings ?? 0)} sparkData={sparkFromHistory('monthlySavings')} valueClass={scaled.monthlySavings >= 0 ? 'fd-summary-value--income' : 'fd-summary-value--negative'} />
+          <SummaryCard label="Savings Rate" value={`${metrics.savingsRate.toFixed(1)}%`} change={pctChange(metrics.savingsRate, prev?.savingsRate ?? 0)} sparkData={sparkFromHistory('savingsRate')} valueClass="fd-summary-value--savings" />
         </div>
 
         <Card>
@@ -1154,26 +1142,9 @@ function App() {
           ) : (
             <ul className="fd-insights-list">
               {insights.map((item, i) => (
-                <li
-                  key={i}
-                  className={`fd-insight fd-insight--${
-                    item.type === 'positive'
-                      ? 'positive'
-                      : item.type === 'warning'
-                        ? 'warning'
-                        : item.type === 'tip'
-                          ? 'tip'
-                          : ''
-                  }`}
-                >
+                <li key={i} className={`fd-insight fd-insight--${item.type === 'positive' ? 'positive' : item.type === 'warning' ? 'warning' : item.type === 'tip' ? 'tip' : ''}`}>
                   <span>
-                    {item.type === 'positive'
-                      ? '✅ '
-                      : item.type === 'warning'
-                        ? '⚠️ '
-                        : item.type === 'tip'
-                          ? '💡 '
-                          : '• '}
+                    {item.type === 'positive' ? '✅ ' : item.type === 'warning' ? '⚠️ ' : item.type === 'tip' ? '💡 ' : '• '}
                     {item.text}
                   </span>
                 </li>
@@ -1186,49 +1157,20 @@ function App() {
           <SectionHeader>Income trend</SectionHeader>
           <div className="fd-chart-wrap">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={incomeTrendData}
-                margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
-              >
+              <AreaChart data={incomeTrendData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={T.gridLine} vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: T.textMuted, fontSize: 10 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: T.textMuted, fontSize: 10 }}
-                  tickFormatter={(v) => formatCompact(v)}
-                  width={44}
-                />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: T.textMuted, fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: T.textMuted, fontSize: 10 }} tickFormatter={(v) => formatCompact(v)} width={44} />
                 <Tooltip content={<ChartTooltip />} cursor={{ stroke: T.border }} />
-                <Area
-                  type="monotone"
-                  dataKey="income"
-                  name="Income"
-                  stroke={T.positive}
-                  fill={T.positive}
-                  fillOpacity={0.08}
-                  strokeWidth={1.5}
-                  {...CHART_ANIMATION}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="expenses"
-                  name="Expenses"
-                  stroke={T.negative}
-                  fill={T.negative}
-                  fillOpacity={0.06}
-                  strokeWidth={1.5}
-                  {...CHART_ANIMATION}
-                />
+                <Area type="monotone" dataKey="income" name="Income" stroke={T.positive} fill={T.positive} fillOpacity={0.08} strokeWidth={1.5} {...CHART_ANIMATION} />
+                <Area type="monotone" dataKey="expenses" name="Expenses" stroke={T.negative} fill={T.negative} fillOpacity={0.06} strokeWidth={1.5} {...CHART_ANIMATION} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
+
+        {/* ── Groww Portfolio ── */}
+        <GrowwPortfolio />
 
         <div className="fd-two-col">
           <Card>
@@ -1237,24 +1179,15 @@ function App() {
               <p className="fd-empty">No expenses entered</p>
             ) : (
               expenseItems.map((item) => {
-                const pct =
-                  metrics.totalExpenses > 0
-                    ? ((item.value / metrics.totalExpenses) * 100).toFixed(0)
-                    : 0
+                const pct = metrics.totalExpenses > 0 ? ((item.value / metrics.totalExpenses) * 100).toFixed(0) : 0
                 return (
                   <div key={item.key} className="fd-expense-row">
                     <div className="fd-expense-head">
-                      <span className="fd-expense-name">
-                        {item.name}
-                        <span className="fd-expense-pct">{pct}%</span>
-                      </span>
+                      <span className="fd-expense-name">{item.name}<span className="fd-expense-pct">{pct}%</span></span>
                       <span className="fd-expense-amt">{formatCompact(item.value)}</span>
                     </div>
                     <div className="fd-expense-track">
-                      <div
-                        className="fd-expense-fill"
-                        style={{ width: `${(item.value / maxExpense) * 100}%` }}
-                      />
+                      <div className="fd-expense-fill" style={{ width: `${(item.value / maxExpense) * 100}%` }} />
                     </div>
                   </div>
                 )
@@ -1264,120 +1197,53 @@ function App() {
 
           <Card>
             <SectionHeader>Savings goals</SectionHeader>
-            {savingsGoals.map((goal) => {
-              const current = parseNum(goal.current)
-              const target = parseNum(goal.target)
-              const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0
-              const suggested =
-                parseNum(goal.monthlyContribution) ||
-                Math.max(1000, metrics.monthlySavings * 0.15)
-              return (
-                <div key={goal.id} className="fd-goal">
-                  <div className="fd-goal-head">
-                    <span className="fd-goal-name">{goal.name}</span>
-                    <span className="fd-goal-amt">
-                      {formatCompact(current)} / {formatCompact(target)}
-                    </span>
-                  </div>
-                  <div className="fd-progress-track">
-                    <div className="fd-progress-fill" style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="fd-goal-meta">
-                    <span>{pct.toFixed(0)}% complete</span>
-                    <span>Est. {estimateCompletion(goal, metrics.monthlySavings)}</span>
-                  </div>
-                  <div className="fd-goal-meta">
-                    <span>Suggested: {formatCompact(suggested)}/mo</span>
-                  </div>
-                </div>
-              )
-            })}
+            {savingsGoals.map((goal) => (
+              <EditableGoal
+                key={goal.id}
+                goal={goal}
+                monthlySavings={metrics.monthlySavings}
+                onSave={(updated) => setSavingsGoals((p) => p.map((g) => g.id === goal.id ? updated : g))}
+                onDelete={() => setSavingsGoals((p) => p.filter((g) => g.id !== goal.id))}
+              />
+            ))}
+            <AddItemRow
+              fields={[
+                { key: 'name', label: 'Goal name', type: 'text' },
+                { key: 'current', label: 'Current amount (₹)', type: 'number' },
+                { key: 'target', label: 'Target amount (₹)', type: 'number' },
+                { key: 'monthlyContribution', label: 'Monthly contribution (₹)', type: 'number' },
+              ]}
+              onAdd={(vals) => setSavingsGoals((p) => [...p, { id: crypto.randomUUID?.() ?? String(Date.now()), ...vals }])}
+            />
           </Card>
         </div>
 
         <div className="fd-three-col">
           <Card>
             <SectionHeader>Recent transactions</SectionHeader>
-
-            <button
-              type="button"
-              className="fd-tx-add-btn"
-              onClick={() => setTxFormOpen((o) => !o)}
-              aria-expanded={txFormOpen}
-            >
+            <button type="button" className="fd-tx-add-btn" onClick={() => setTxFormOpen((o) => !o)} aria-expanded={txFormOpen}>
               {txFormOpen ? '− Cancel' : '+ Add Transaction'}
             </button>
-
             {txFormOpen && (
               <form className="fd-tx-form" onSubmit={addTransaction}>
-                <label className="fd-label" htmlFor="tx-date">
-                  Date
-                </label>
-                <input
-                  id="tx-date"
-                  className="fd-input"
-                  type="date"
-                  value={txDate}
-                  onChange={(e) => setTxDate(e.target.value)}
-                />
-
-                <label className="fd-label" htmlFor="tx-desc">
-                  Description
-                </label>
-                <input
-                  id="tx-desc"
-                  className="fd-input"
-                  type="text"
-                  placeholder="What was this for?"
-                  value={txDescription}
-                  onChange={(e) => setTxDescription(e.target.value)}
-                />
-
-                <label className="fd-label" htmlFor="tx-cat">
-                  Category
-                </label>
-                <select
-                  id="tx-cat"
-                  className="fd-input"
-                  value={txCategory}
-                  onChange={(e) => setTxCategory(e.target.value)}
-                >
-                  {TX_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
+                <label className="fd-label" htmlFor="tx-date">Date</label>
+                <input id="tx-date" className="fd-input" type="date" value={txDate} onChange={(e) => setTxDate(e.target.value)} />
+                <label className="fd-label" htmlFor="tx-desc">Description</label>
+                <input id="tx-desc" className="fd-input" type="text" placeholder="What was this for?" value={txDescription} onChange={(e) => setTxDescription(e.target.value)} />
+                <label className="fd-label" htmlFor="tx-cat">Category</label>
+                <select id="tx-cat" className="fd-input" value={txCategory} onChange={(e) => setTxCategory(e.target.value)}>
+                  {TX_CATEGORIES.map((c) => (<option key={c} value={c}>{c}</option>))}
                 </select>
-
-                <label className="fd-label" htmlFor="tx-amt">
-                  Amount
-                </label>
+                <label className="fd-label" htmlFor="tx-amt">Amount</label>
                 <MoneyInput value={txAmount} onChange={setTxAmount} />
-
                 <span className="fd-label">Type</span>
                 <div className="fd-tx-toggle">
-                  <button
-                    type="button"
-                    className={`fd-tx-toggle-btn ${txType === 'in' ? 'fd-tx-toggle-btn--in-active' : ''}`}
-                    onClick={() => setTxType('in')}
-                  >
-                    Income
-                  </button>
-                  <button
-                    type="button"
-                    className={`fd-tx-toggle-btn ${txType === 'out' ? 'fd-tx-toggle-btn--out-active' : ''}`}
-                    onClick={() => setTxType('out')}
-                  >
-                    Expense
-                  </button>
+                  <button type="button" className={`fd-tx-toggle-btn ${txType === 'in' ? 'fd-tx-toggle-btn--in-active' : ''}`} onClick={() => setTxType('in')}>Income</button>
+                  <button type="button" className={`fd-tx-toggle-btn ${txType === 'out' ? 'fd-tx-toggle-btn--out-active' : ''}`} onClick={() => setTxType('out')}>Expense</button>
                 </div>
-
-                <button type="submit" className="fd-btn-primary">
-                  Save transaction
-                </button>
+                <button type="submit" className="fd-btn-primary">Save transaction</button>
               </form>
             )}
-
             {sortedTransactions.length === 0 ? (
               <p className="fd-empty">No transactions yet</p>
             ) : (
@@ -1385,24 +1251,12 @@ function App() {
                 <div key={t.id} className="fd-list-item fd-list-item--tx">
                   <div>
                     <div className="fd-list-label">{t.label}</div>
-                    <div className="fd-list-sub">
-                      {t.category || 'Other'} · {formatTxDate(t.date)}
-                    </div>
+                    <div className="fd-list-sub">{t.category || 'Other'} · {formatTxDate(t.date)}</div>
                   </div>
-                  <span
-                    className={`fd-list-amt fd-list-amt--${t.type === 'in' ? 'in' : 'out'}`}
-                  >
-                    {t.type === 'in' ? '+' : '−'}
-                    {formatCurrency(parseNum(t.amount))}
+                  <span className={`fd-list-amt fd-list-amt--${t.type === 'in' ? 'in' : 'out'}`}>
+                    {t.type === 'in' ? '+' : '−'}{formatCurrency(parseNum(t.amount))}
                   </span>
-                  <button
-                    type="button"
-                    className="fd-tx-delete"
-                    onClick={() => deleteTransaction(t.id)}
-                    aria-label={`Delete ${t.label}`}
-                  >
-                    ✕
-                  </button>
+                  <button type="button" className="fd-tx-delete" onClick={() => deleteTransaction(t.id)} aria-label={`Delete ${t.label}`}>✕</button>
                 </div>
               ))
             )}
@@ -1411,80 +1265,91 @@ function App() {
           <Card>
             <SectionHeader>Upcoming bills</SectionHeader>
             {upcomingBills.map((b) => (
-              <div key={b.id} className="fd-list-item">
-                <div>
-                  <div className="fd-list-label">{b.name}</div>
-                  <div className="fd-list-sub">Due {b.due}</div>
-                </div>
-                <span className="fd-list-amt fd-list-amt--out">
-                  {formatCurrency(parseNum(b.amount))}
-                </span>
-              </div>
+              <EditableListItem
+                key={b.id}
+                item={b}
+                fields={[
+                  { key: 'name', label: 'Name', type: 'text' },
+                  { key: 'amount', label: 'Amount', type: 'number' },
+                  { key: 'due', label: 'Due date', type: 'date' },
+                ]}
+                onSave={(updated) => setUpcomingBills((p) => p.map((x) => x.id === b.id ? updated : x))}
+                onDelete={() => setUpcomingBills((p) => p.filter((x) => x.id !== b.id))}
+                renderRow={(item) => (
+                  <>
+                    <div><div className="fd-list-label">{item.name}</div><div className="fd-list-sub">Due {item.due}</div></div>
+                    <span className="fd-list-amt fd-list-amt--out">{formatCurrency(parseNum(item.amount))}</span>
+                  </>
+                )}
+              />
             ))}
+            <AddItemRow
+              fields={[
+                { key: 'name', label: 'Bill name', type: 'text' },
+                { key: 'amount', label: 'Amount', type: 'number' },
+                { key: 'due', label: 'Due date', type: 'date' },
+              ]}
+              onAdd={(vals) => setUpcomingBills((p) => [...p, { id: crypto.randomUUID?.() ?? String(Date.now()), ...vals }])}
+            />
           </Card>
 
           <Card>
             <SectionHeader>Recurring payments</SectionHeader>
             {recurringPayments.map((r) => (
-              <div key={r.id} className="fd-list-item">
-                <div>
-                  <div className="fd-list-label">{r.name}</div>
-                  <div className="fd-list-sub">{r.cadence}</div>
-                </div>
-                <span className="fd-list-amt fd-list-amt--out">
-                  {formatCurrency(parseNum(r.amount))}
-                </span>
-              </div>
+              <EditableListItem
+                key={r.id}
+                item={r}
+                fields={[
+                  { key: 'name', label: 'Name', type: 'text' },
+                  { key: 'amount', label: 'Amount', type: 'number' },
+                  { key: 'cadence', label: 'Cadence', type: 'text' },
+                ]}
+                onSave={(updated) => setRecurringPayments((p) => p.map((x) => x.id === r.id ? updated : x))}
+                onDelete={() => setRecurringPayments((p) => p.filter((x) => x.id !== r.id))}
+                renderRow={(item) => (
+                  <>
+                    <div><div className="fd-list-label">{item.name}</div><div className="fd-list-sub">{item.cadence}</div></div>
+                    <span className="fd-list-amt fd-list-amt--out">{formatCurrency(parseNum(item.amount))}</span>
+                  </>
+                )}
+              />
             ))}
+            <AddItemRow
+              fields={[
+                { key: 'name', label: 'Payment name', type: 'text' },
+                { key: 'amount', label: 'Amount', type: 'number' },
+                { key: 'cadence', label: 'Cadence', type: 'text', placeholder: 'Monthly' },
+              ]}
+              onAdd={(vals) => setRecurringPayments((p) => [...p, { id: crypto.randomUUID?.() ?? String(Date.now()), ...vals }])}
+            />
           </Card>
         </div>
 
         <Card>
           <SectionHeader>Financial health</SectionHeader>
           <div style={{ marginBottom: 20 }}>
-            <div className="fd-health-score">
-              {health.overall}
-              <span> / 100</span>
-            </div>
+            <div className="fd-health-score">{health.overall}<span> / 100</span></div>
             <TrendBadge change={healthTrend} />
           </div>
           <div className="fd-health-grid">
-            {[
-              ['Savings', health.savings],
-              ['Spending', health.spending],
-              ['Emergency fund', health.emergency],
-              ['Debt', health.debt],
-            ].map(([label, score]) => (
+            {[['Savings', health.savings], ['Spending', health.spending], ['Emergency fund', health.emergency], ['Debt', health.debt]].map(([label, score]) => (
               <div key={label} className="fd-health-item">
-                <label>
-                  <span>{label}</span>
-                  <strong>{score}</strong>
-                </label>
-                <div className="fd-progress-track">
-                  <div
-                    className="fd-progress-fill"
-                    style={{ width: `${score}%` }}
-                  />
-                </div>
+                <label><span>{label}</span><strong>{score}</strong></label>
+                <div className="fd-progress-track"><div className="fd-progress-fill" style={{ width: `${score}%` }} /></div>
               </div>
             ))}
           </div>
           <div className="fd-form-row" style={{ marginTop: 16, border: 'none' }}>
-            <label>Net worth</label>
+            <label>Net worth (₹)</label>
             <MoneyInput value={netWorth} onChange={setNetWorth} />
           </div>
           <div className="fd-form-row" style={{ border: 'none' }}>
-            <label>Total debt</label>
-            <MoneyInput value={debt} onChange={setDebt} compact />
+            <label>Total debt (₹)</label>
+            <MoneyInput value={debt} onChange={setDebt} />
           </div>
         </Card>
 
-        <button
-          type="button"
-          className="fd-forms-toggle"
-          onClick={() => setFormsOpen((o) => !o)}
-          aria-expanded={formsOpen}
-        >
+        <button type="button" className="fd-forms-toggle" onClick={() => setFormsOpen((o) => !o)} aria-expanded={formsOpen}>
           {formsOpen ? '▼' : '▶'} Edit income & expenses
         </button>
 
@@ -1495,72 +1360,26 @@ function App() {
               {Object.entries(INCOME_LABELS).map(([key, label]) => (
                 <div key={key} className="fd-form-row">
                   <label htmlFor={`inc-${key}`}>{label}</label>
-                  <MoneyInput
-                    value={income[key]}
-                    onChange={(v) => setIncome((p) => ({ ...p, [key]: v }))}
-                  />
+                  <MoneyInput value={income[key]} onChange={(v) => setIncome((p) => ({ ...p, [key]: v }))} />
                 </div>
               ))}
               {(income.custom || []).map((c) => (
                 <div key={c.id} className="fd-form-row">
                   <label>{c.name}</label>
-                  <MoneyInput
-                    compact
-                    value={c.amount}
-                    onChange={(v) =>
-                      setIncome((p) => ({
-                        ...p,
-                        custom: p.custom.map((x) =>
-                          x.id === c.id ? { ...x, amount: v } : x,
-                        ),
-                      }))
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="fd-btn-ghost"
-                    onClick={() =>
-                      setIncome((p) => ({
-                        ...p,
-                        custom: p.custom.filter((x) => x.id !== c.id),
-                      }))
-                    }
-                  >
-                    ×
-                  </button>
+                  <MoneyInput compact value={c.amount} onChange={(v) => setIncome((p) => ({ ...p, custom: p.custom.map((x) => x.id === c.id ? { ...x, amount: v } : x) }))} />
+                  <button type="button" className="fd-btn-ghost" onClick={() => setIncome((p) => ({ ...p, custom: p.custom.filter((x) => x.id !== c.id) }))}>×</button>
                 </div>
               ))}
               <div className="fd-add-line">
-                <input
-                  className="fd-input"
-                  placeholder="Source name"
-                  value={newIncName}
-                  onChange={(e) => setNewIncName(e.target.value)}
-                />
+                <input className="fd-input" placeholder="Source name" value={newIncName} onChange={(e) => setNewIncName(e.target.value)} />
                 <MoneyInput compact value={newIncAmount} onChange={setNewIncAmount} />
-                <button
-                  type="button"
-                  className="fd-btn-primary"
-                  onClick={() => {
-                    const name = newIncName.trim()
-                    if (!name) return
-                    setIncome((p) => ({
-                      ...p,
-                      custom: [
-                        ...(p.custom || []),
-                        {
-                          id: crypto.randomUUID?.() ?? String(Date.now()),
-                          name,
-                          amount: newIncAmount,
-                        },
-                      ],
-                    }))
-                    setNewIncName('')
-                    setNewIncAmount('')
-                  }}
-                >
-                  + Add
-                </button>
+                <button type="button" className="fd-btn-primary" onClick={() => {
+                  const name = newIncName.trim()
+                  if (!name) return
+                  setIncome((p) => ({ ...p, custom: [...(p.custom || []), { id: crypto.randomUUID?.() ?? String(Date.now()), name, amount: newIncAmount }] }))
+                  setNewIncName('')
+                  setNewIncAmount('')
+                }}>+ Add</button>
               </div>
             </Card>
 
@@ -1569,61 +1388,26 @@ function App() {
               {Object.entries(EXPENSE_LABELS).map(([key, label]) => (
                 <div key={key} className="fd-form-row">
                   <label htmlFor={`exp-${key}`}>{label}</label>
-                  <MoneyInput
-                    value={expenses[key]}
-                    onChange={(v) => setExpenses((p) => ({ ...p, [key]: v }))}
-                  />
+                  <MoneyInput value={expenses[key]} onChange={(v) => setExpenses((p) => ({ ...p, [key]: v }))} />
                 </div>
               ))}
               {customExpenses.map((c) => (
                 <div key={c.id} className="fd-form-row">
                   <label>{c.name}</label>
-                  <MoneyInput
-                    compact
-                    value={c.amount}
-                    onChange={(v) =>
-                      setCustomExpenses((p) =>
-                        p.map((x) => (x.id === c.id ? { ...x, amount: v } : x)),
-                      )
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="fd-btn-ghost"
-                    onClick={() => removeCustomCategory(c.id)}
-                  >
-                    ×
-                  </button>
+                  <MoneyInput compact value={c.amount} onChange={(v) => setCustomExpenses((p) => p.map((x) => x.id === c.id ? { ...x, amount: v } : x))} />
+                  <button type="button" className="fd-btn-ghost" onClick={() => removeCustomCategory(c.id)}>×</button>
                 </div>
               ))}
               <div className="fd-add-line">
-                <input
-                  className="fd-input"
-                  placeholder="Category"
-                  value={newExpName}
-                  onChange={(e) => setNewExpName(e.target.value)}
-                />
+                <input className="fd-input" placeholder="Category" value={newExpName} onChange={(e) => setNewExpName(e.target.value)} />
                 <MoneyInput compact value={newExpAmount} onChange={setNewExpAmount} />
-                <button
-                  type="button"
-                  className="fd-btn-primary"
-                  onClick={() => {
-                    const name = newExpName.trim()
-                    if (!name) return
-                    setCustomExpenses((p) => [
-                      ...p,
-                      {
-                        id: crypto.randomUUID?.() ?? String(Date.now()),
-                        name,
-                        amount: newExpAmount,
-                      },
-                    ])
-                    setNewExpName('')
-                    setNewExpAmount('')
-                  }}
-                >
-                  + Add category
-                </button>
+                <button type="button" className="fd-btn-primary" onClick={() => {
+                  const name = newExpName.trim()
+                  if (!name) return
+                  setCustomExpenses((p) => [...p, { id: crypto.randomUUID?.() ?? String(Date.now()), name, amount: newExpAmount }])
+                  setNewExpName('')
+                  setNewExpAmount('')
+                }}>+ Add category</button>
               </div>
             </Card>
           </div>
