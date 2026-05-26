@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { supabase } from './supabase'
 import {
   AreaChart,
   Area,
