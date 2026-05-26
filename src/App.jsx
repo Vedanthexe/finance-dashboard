@@ -685,23 +685,32 @@ function App() {
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    const saved = loadState()
-    if (saved) {
-      setIncome(saved.income)
-      setExpenses(saved.expenses)
-      setCustomExpenses(saved.customExpenses)
-      setNetWorth(saved.netWorth)
-      setDebt(saved.debt)
-      setSavingsGoals(saved.savingsGoals)
-      setTransactions(saved.transactions)
-      setUpcomingBills(saved.upcomingBills)
-      setRecurringPayments(saved.recurringPayments)
-      setHistory(saved.history)
-      setSelectedMonth(saved.selectedMonth)
-      setPeriod(saved.period)
-    }
-    setHydrated(true)
-  }, [])
+    const userId = session?.user?.id
+    if (!userId) { setHydrated(true); return }
+    supabase
+      .from('user_data')
+      .select('data')
+      .eq('user_id', userId)
+      .single()
+      .then(({ data: row }) => {
+        const saved = row?.data
+        if (saved) {
+          setIncome({ ...DEFAULT_INCOME, ...saved.income, custom: saved.income?.custom || [] })
+          setExpenses({ ...DEFAULT_EXPENSES, ...saved.expenses })
+          setCustomExpenses(saved.customExpenses || [])
+          setNetWorth(saved.netWorth ?? '')
+          setDebt(saved.debt ?? '0')
+          setSavingsGoals(saved.savingsGoals?.length ? saved.savingsGoals : DEFAULT_GOALS)
+          setTransactions(saved.transactions?.length ? saved.transactions : DEFAULT_TRANSACTIONS)
+          setUpcomingBills(saved.upcomingBills?.length ? saved.upcomingBills : DEFAULT_BILLS)
+          setRecurringPayments(saved.recurringPayments?.length ? saved.recurringPayments : DEFAULT_RECURRING)
+          setHistory(saved.history || {})
+          setSelectedMonth(saved.selectedMonth || monthKey())
+          setPeriod(saved.period || 'month')
+        }
+        setHydrated(true)
+      })
+  }, [session])
 
   const metrics = useMemo(
     () => computeMetrics(income, expenses, customExpenses, netWorth),
@@ -710,18 +719,21 @@ function App() {
 
   useEffect(() => {
     if (!hydrated) return
+    const userId = session?.user?.id
+    if (!userId) return
     const snap = buildSnapshot(income, expenses, customExpenses, netWorth)
     const monthSnap = { ...snap, foodExpense: parseNum(expenses.food) }
     setHistory((prev) => {
       const nextHistory = { ...prev, [selectedMonth]: monthSnap }
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          income, expenses, customExpenses, netWorth, debt,
-          savingsGoals, transactions, upcomingBills, recurringPayments,
-          history: nextHistory, selectedMonth, period,
-        }),
-      )
+      const payload = {
+        income, expenses, customExpenses, netWorth, debt,
+        savingsGoals, transactions, upcomingBills, recurringPayments,
+        history: nextHistory, selectedMonth, period,
+      }
+      supabase
+        .from('user_data')
+        .upsert({ user_id: userId, data: payload, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+        .then(() => {})
       return nextHistory
     })
   }, [income, expenses, customExpenses, netWorth, debt, savingsGoals, transactions, upcomingBills, recurringPayments, selectedMonth, period, hydrated])
