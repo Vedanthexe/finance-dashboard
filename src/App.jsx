@@ -66,69 +66,13 @@ const TX_CATEGORIES = [
   'Other',
 ]
 
-const DEFAULT_GOALS = [
-  {
-    id: 'emergency',
-    name: 'Emergency Fund',
-    current: '400000',
-    target: '600000',
-    monthlyContribution: '15000',
-  },
-  {
-    id: 'laptop',
-    name: 'Laptop Fund',
-    current: '35000',
-    target: '70000',
-    monthlyContribution: '8000',
-  },
-  {
-    id: 'vacation',
-    name: 'Vacation Fund',
-    current: '12000',
-    target: '50000',
-    monthlyContribution: '5000',
-  },
-]
+const DEFAULT_GOALS = []
 
-const DEFAULT_TRANSACTIONS = [
-  {
-    id: 't1',
-    label: 'Salary credit',
-    amount: '280000',
-    date: '2026-05-01',
-    type: 'in',
-    category: 'Salary',
-    ledgerApplied: false,
-  },
-  {
-    id: 't2',
-    label: 'Rent payment',
-    amount: '40000',
-    date: '2026-05-03',
-    type: 'out',
-    category: 'Rent',
-    ledgerApplied: false,
-  },
-  {
-    id: 't3',
-    label: 'Swiggy',
-    amount: '850',
-    date: '2026-05-12',
-    type: 'out',
-    category: 'Food',
-    ledgerApplied: false,
-  },
-]
+const DEFAULT_TRANSACTIONS = []
 
-const DEFAULT_BILLS = [
-  { id: 'b1', name: 'Electricity', amount: '3200', due: '2026-05-28' },
-  { id: 'b2', name: 'Internet', amount: '999', due: '2026-06-02' },
-]
+const DEFAULT_BILLS = []
 
-const DEFAULT_RECURRING = [
-  { id: 'r1', name: 'Netflix', amount: '649', cadence: 'Monthly' },
-  { id: 'r2', name: 'Gym', amount: '2500', cadence: 'Monthly' },
-]
+const DEFAULT_RECURRING = []
 
 
 const T = {
