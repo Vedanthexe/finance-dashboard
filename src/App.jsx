@@ -129,36 +129,6 @@ const DEFAULT_RECURRING = [
   { id: 'r2', name: 'Gym', amount: '2500', cadence: 'Monthly' },
 ]
 
-// Groww portfolio data (live as of 26 May 2026, 11:55 AM IST)
-const GROWW_PORTFOLIO = {
-  lastSynced: '26 May 2026, 11:55 AM IST',
-  totalInvested: 7034,
-  totalCurrent: 8130,
-  totalPnl: 1097,
-  totalPnlPct: 15.60,
-  holdings: [
-    {
-      symbol: 'ADANIPORTS',
-      title: 'Adani Ports and SEZ',
-      qty: 1,
-      avgPrice: 1467.20,
-      invested: 1467,
-      current: 1810,
-      pnl: 345.90,
-      pnlPct: 23.58,
-    },
-    {
-      symbol: 'SILVERBEES',
-      title: 'Nippon India Silver ETF',
-      qty: 25,
-      avgPrice: 222.67,
-      invested: 5567,
-      current: 6320,
-      pnl: 751.25,
-      pnlPct: 13.50,
-    },
-  ],
-}
 
 const T = {
   bg: '#0A0A0A',
@@ -605,101 +575,6 @@ function EditableGoal({ goal, monthlySavings, onSave, onDelete }) {
 }
 
 // ─── Groww Portfolio Section ────────────────────────────────────────────────
-function GrowwPortfolio() {
-  const p = GROWW_PORTFOLIO
-  const totalInvested = p.totalInvested
-  return (
-    <Card>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <h2 className="fd-section-title" style={{ margin: 0 }}>Groww Portfolio</h2>
-        <span style={{
-          fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase',
-          background: 'rgba(16,185,129,0.12)', color: T.positive,
-          border: '1px solid rgba(16,185,129,0.25)', borderRadius: 99,
-          padding: '2px 8px', lineHeight: 1.6,
-        }}>● Live</span>
-      </div>
-
-      {/* Summary stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
-        {[
-          { label: 'Invested', value: formatCurrency(p.totalInvested), color: T.text },
-          { label: 'Current Value', value: formatCurrency(p.totalCurrent), color: T.positive },
-          { label: 'Total P&L', value: `+${formatCurrency(p.totalPnl)} (+${p.totalPnlPct.toFixed(1)}%)`, color: T.positive },
-        ].map(({ label, value, color }) => (
-          <div key={label} style={{
-            background: T.inputBg, border: `1px solid ${T.border}`,
-            borderRadius: 10, padding: '12px 14px',
-          }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 6 }}>{label}</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>{value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Allocation bar */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 8 }}>Allocation</div>
-        <div style={{ display: 'flex', height: 6, borderRadius: 999, overflow: 'hidden', background: T.track }}>
-          {p.holdings.map((h, i) => (
-            <div key={h.symbol} style={{
-              width: `${(h.invested / totalInvested) * 100}%`,
-              background: i === 0 ? T.positive : 'rgba(16,185,129,0.4)',
-              transition: 'width 0.4s ease',
-            }} />
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-          {p.holdings.map((h, i) => (
-            <div key={h.symbol} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: T.textMuted }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: 2, flexShrink: 0,
-                background: i === 0 ? T.positive : 'rgba(16,185,129,0.4)',
-              }} />
-              {h.symbol} ({((h.invested / totalInvested) * 100).toFixed(0)}%)
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Holdings rows */}
-      <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.textMuted, marginBottom: 10 }}>Holdings</div>
-      {p.holdings.map((h) => (
-        <div key={h.symbol} style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          gap: 12, padding: '12px 0', borderBottom: `1px solid ${T.border}`,
-        }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{
-                fontSize: 11, fontWeight: 600, background: T.inputBg,
-                border: `1px solid ${T.border}`, borderRadius: 4,
-                padding: '2px 6px', color: T.textSecondary, letterSpacing: '0.04em',
-              }}>{h.symbol}</span>
-              <span style={{ fontSize: 13, color: T.text }}>{h.title}</span>
-            </div>
-            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4 }}>
-              {h.qty} share{h.qty !== 1 ? 's' : ''} · Avg {formatCurrency(h.avgPrice)}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: T.text, fontVariantNumeric: 'tabular-nums' }}>
-              {formatCurrency(h.current)}
-            </div>
-            <div style={{ fontSize: 12, color: T.positive, fontWeight: 500, marginTop: 2 }}>
-              +{formatCurrency(h.pnl)} ({h.pnlPct.toFixed(2)}%)
-            </div>
-          </div>
-        </div>
-      ))}
-
-      {/* Sync note */}
-      <div style={{ fontSize: 11, color: T.textMuted, marginTop: 14 }}>
-        Last synced: {p.lastSynced}
-      </div>
-    </Card>
-  )
-}
 
 function generateInsights({ metrics, prev, scaled, savingsRate, expenseItems, goals, periodLabel }) {
   const insights = []
@@ -749,7 +624,6 @@ function generateInsights({ metrics, prev, scaled, savingsRate, expenseItems, go
   }
 
   // Groww insight
-  insights.push({ type: 'positive', text: `Groww portfolio up ${GROWW_PORTFOLIO.totalPnlPct.toFixed(1)}% · Best: ADANIPORTS +23.58%` })
 
   return insights.slice(0, 6)
 }
@@ -1168,11 +1042,7 @@ function App() {
             </ResponsiveContainer>
           </div>
         </Card>
-
-        {/* ── Groww Portfolio ── */}
-        <GrowwPortfolio />
-
-        <div className="fd-two-col">
+<div className="fd-two-col">
           <Card>
             <SectionHeader>Expenses</SectionHeader>
             {expenseItems.length === 0 ? (
