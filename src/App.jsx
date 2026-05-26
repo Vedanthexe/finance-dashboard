@@ -1012,6 +1012,7 @@ function App({ session }) {
               {monthOptions.map((m) => (<option key={m} value={m}>{formatMonthLabel(m)}</option>))}
             </select>
             <span className="fd-sync-badge">● Auto-saved</span>
+            <button type="button" onClick={() => supabase.auth.signOut()} style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#F43F5E', padding: '6px 14px', border: '1px solid rgba(244,63,94,0.3)', borderRadius: 8, background: 'transparent', cursor: 'pointer', marginLeft: 8 }}>Sign out</button>
           </div>
         </header>
 
