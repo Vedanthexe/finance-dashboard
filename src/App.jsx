@@ -658,7 +658,7 @@ function estimateCompletion(goal, monthlySavings) {
   return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
 }
 
-function App() {
+function App({ session }) {
   const [income, setIncome] = useState({ ...DEFAULT_INCOME, custom: [] })
   const [expenses, setExpenses] = useState(DEFAULT_EXPENSES)
   const [customExpenses, setCustomExpenses] = useState([])
