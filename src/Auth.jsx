@@ -68,7 +68,7 @@ export default function Auth() {
               <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" style={inp} />
             </div>
             {error && <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 20, fontSize: 14, background: T.negativeMuted, border: '1px solid rgba(244,63,94,0.2)', color: T.negative }}>{error}</div>}
-            {message && <div style={{ padding: '12px 16px', borderRadius: 10, marginBottom: 20, fontSize: 14, background: T.positiveMuted, border: '1px solid rgba(16,185,129,0.2)', color: T.positive }}>{message}</div>}
+            {message && <div style={{ padding: '16px 20px', borderRadius: 12, marginBottom: 20, fontSize: 15, fontWeight: 600, background: T.positiveMuted, border: '2px solid rgba(16,185,129,0.4)', color: T.positive, textAlign: 'center', lineHeight: 1.5 }}>✅ {message}</div>}
             <button type="submit" disabled={loading} style={{ width: '100%', padding: '15px', fontSize: 15, fontWeight: 600, color: '#0A0A0A', background: T.positive, border: 'none', borderRadius: 10, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
               {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
             </button>
